@@ -220,33 +220,7 @@ fu s:on_leaving_submode() abort "{{{2
     " clear the command-line to erase the name of the submode
     if mode() =~# '^[iR]'
         let pos = getcurpos()
-        " `:redraw!` fails to clear the command-line in Nvim.{{{
-        "
-        " But it works in Vim.
-        " It's not due to a missing Vim patch (`:redraw!` works on Vim 8.0).
-        "
-        " MWE:
-        "
-        "     nvim -Nu NONE -S <(cat <<'EOF'
-        "         ino <silent> <c-g>, <c-r>=Func()<cr>
-        "         fu Func()
-        "             echo 'erase me'
-        "             " here 'redraw!' fails to clear the command-line; OTOH, 'exe "norm! \<c-l>"' would work
-        "             redraw!
-        "             return ''
-        "         endfu
-        "         set noshowmode
-        "         startinsert
-        "     EOF
-        "     )
-        "     " press: C-g ,
-        "     " 'erase me' is not cleared
-        "
-        " It's probably a Nvim bug.
-        " And it's not the same as this one: https://github.com/neovim/neovim/issues/9006
-        " Because in the latter, replacing `redraw!` with `norm! ^L` does not help.
-        "}}}
-        exe "norm! \<c-l>"
+        redraw!
         call setpos('.', pos)
     else
         exe "norm! \<c-l>"
@@ -255,7 +229,7 @@ fu s:on_leaving_submode() abort "{{{2
 endfu
 
 fu s:show_submode(name, ...) abort "{{{2
-    " In Vim, the message may sometimes be erased unexpectedly.  Delaying it fixes the issue.{{{
+    " The message may sometimes be erased unexpectedly.  Delaying it fixes the issue.{{{
     "
     " That happens, for example, with `i^x^e` and `i^x^y`.
     " For some reason, the scrolling of the window causes the command-line to be
@@ -278,14 +252,9 @@ fu s:show_submode(name, ...) abort "{{{2
     "     EOF
     "     )
     "     " press 'C-g j'
-    "
-    " The issue does not seem to affect Nvim.
-    " On the contrary, delaying `:echo` in  Nvim prevents the message from being
-    " displayed while  in the submode;  worse, when  you leave the  submode, the
-    " message is *then* wrongly displayed.
     "}}}
     let when = a:0 ? 'now' : 'later'
-    if when is# 'now' || has('nvim')
+    if when is# 'now'
         echohl ModeMsg
         echo '-- Submode: '..a:name..' --'
         echohl None
