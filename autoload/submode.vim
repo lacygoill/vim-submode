@@ -131,7 +131,7 @@ fu s:install_mappings(name, mode, flags, lhs, rhs) abort "{{{2
     " share a telling name:
     "
     "     <Plug>(sm-exe:scrollwin:<C-G>j) * <C-X><C-E>
-    "                   ^^^^^^^^^
+    "                   ^-------^
     "                   easy to find
     "
     "     <Plug>(sm-exe:i:<C-G>j) * <C-X><C-E>
