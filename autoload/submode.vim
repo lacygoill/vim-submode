@@ -154,26 +154,26 @@ fu s:install_mappings(name, mode, flags, lhs, rhs) abort "{{{2
     " arguments (`<expr>`, `<silent>`, ...).
     " But you can't use them here because the other `<plug>` may not work with them.
     "}}}
-    exe a:mode..'map '
-        \ ..(a:flags =~# 'b' ? ' <buffer> ' : '')
-        \ ..a:lhs
+    exe a:mode .. 'map '
+        \ .. (a:flags =~# 'b' ? ' <buffer> ' : '')
+        \ .. a:lhs
         \
         "\     <plug>(sm-exe:scrollwin:<c-g>j)
         "\     →     <c-x><c-e>
-        \ ..' '..plug_exe
+        \ .. ' ' .. plug_exe
         "\     <plug>(sm-show:scrollwin)
         "\     →     <sid>show_submode('scrollwin')
-        \ ..plug_show
+        \ .. plug_show
         "\     <plug>(sm-prefix:scrollwin)_____
         "\     →     @=<sid>on_leaving_submode()<cr>
-        \ ..plug_prefix
+        \ .. plug_prefix
 
     "     imap <plug>(sm-exe:scrollwin:<c-g>j) <c-x><c-e>
-    exe a:mode..(a:flags =~# 'r' ? 'map' : 'noremap')
+    exe a:mode .. (a:flags =~# 'r' ? 'map' : 'noremap')
         "\ use mapping arguments (`<buffer>`, `<expr>`, ...) according to flags passed to `#enter()`
-        \ ..' '..s:map_arguments(a:flags)
-        \ ..' '..plug_exe
-        \ ..' '..a:rhs
+        \ .. ' ' .. s:map_arguments(a:flags)
+        \ .. ' ' .. plug_exe
+        \ .. ' ' .. a:rhs
 
     "     ino <expr> <plug>(sm-show:scrollwin) <sid>show_submode('scrollwin')
     exe printf('%snoremap <expr> %s <sid>show_submode(%s)', a:mode, plug_show, string(a:name))
@@ -187,22 +187,22 @@ fu s:install_mappings(name, mode, flags, lhs, rhs) abort "{{{2
     "}}}
 
     "     imap <plug>(sm-prefix:scrollwin)_____j <c-g>j
-    exe a:mode..'map '
+    exe a:mode .. 'map '
         \ (a:flags =~# 'b' ? ' <buffer> ' : '')
-        \        plug_prefix..s:last_key(a:lhs)
-        \ ..' '..a:lhs
+        \        plug_prefix .. s:last_key(a:lhs)
+        \ .. ' ' .. a:lhs
 endfu
 "}}}1
 " Util {{{1
 fu s:map_arguments(flags) abort "{{{2
-    return join(map(split(a:flags, '\zs'), 'get(s:FLAG2ARG, v:val, "")'))
+    return split(a:flags, '\zs')->map('get(s:FLAG2ARG, v:val, "")')->join()
 endfu
 
 fu s:last_key(lhs) abort "{{{2
     " If you need sth more reliable, try this:{{{
     "
     "     let lhs = matchstr(a:lhs, '<[^<>]\+>$')
-    "     if !empty(lhs) && eval('"\'..lhs..'"') isnot# lhs
+    "     if !empty(lhs) && eval('"\' .. lhs .. '"') isnot# lhs
     "         return lhs
     "     else
     "         return a:lhs[-1:-1]
@@ -256,7 +256,7 @@ fu s:show_submode(name, ...) abort "{{{2
     let when = a:0 ? 'now' : 'later'
     if when is# 'now'
         echohl ModeMsg
-        echo '-- Submode: '..a:name..' --'
+        echo '-- Submode: ' .. a:name .. ' --'
         echohl None
     else
         " don't try `SafeState`; it's not fired in insert mode
