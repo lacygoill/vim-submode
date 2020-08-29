@@ -97,7 +97,7 @@ fu submode#enter(name, modes, flags, lhs, rhs) abort "{{{2
     "       but it will never be executed immediately because there will always be an ambiguity
     "       (another mapping is going to be installed with this prefix as its entire lhs)
     "
-    " Note  that in  reality, the  sequences  of underscores  are replaced  with
+    " Note  that  in reality,  the  sequences  of  underscores are  replaced  by
     " sequences of no-break  spaces to be invisible on the  command-line (and on
     " the cursor cell in insert mode).
     "}}}
