@@ -106,10 +106,9 @@ fu submode#enter(name, modes, flags, lhs, rhs) abort "{{{2
     "     <plug>(sm-exe:scrollwin:<c-g>j)  <c-x><c-e>
     "     <plug>(sm-exe:scrollwin:<c-g>k)  <c-x><c-y>
     "
-    "     " this one uses `<expr>`
-    "     <plug>(sm-show:scrollwin)  <SNR>123_show_submode('scrollwin')
+    "     <plug>(sm-show:scrollwin) <cmd>call <SNR>123_show_submode('scrollwin')<cr>
     "
-    "     <plug>(sm-prefix:scrollwin)_____  <c-r>=<SNR>123_on_leaving_submode()<cr>
+    "     <plug>(sm-prefix:scrollwin)_____  <cmd>call <SNR>123_on_leaving_submode()<cr>
     "}}}
     for mode in split(a:modes, '\zs')
         call s:install_mappings(a:name, mode, a:flags, a:lhs, a:rhs)
@@ -165,7 +164,7 @@ fu s:install_mappings(name, mode, flags, lhs, rhs) abort "{{{2
         "\     →     <sid>show_submode('scrollwin')
         \ .. plug_show
         "\     <plug>(sm-prefix:scrollwin)_____
-        "\     →     @=<sid>on_leaving_submode()<cr>
+        "\     →     <cmd>call <sid>on_leaving_submode()<cr>
         \ .. plug_prefix
 
     "     imap <plug>(sm-exe:scrollwin:<c-g>j) <c-x><c-e>
@@ -175,16 +174,11 @@ fu s:install_mappings(name, mode, flags, lhs, rhs) abort "{{{2
         \ .. ' ' .. plug_exe
         \ .. ' ' .. a:rhs
 
-    "     ino <expr> <plug>(sm-show:scrollwin) <sid>show_submode('scrollwin')
-    exe printf('%snoremap <expr> %s <sid>show_submode(%s)', a:mode, plug_show, string(a:name))
+    "     ino <plug>(sm-show:scrollwin) <cmd>call <sid>show_submode('scrollwin')<cr>
+    exe printf('%snoremap %s <cmd>call <sid>show_submode(%s)<cr>', a:mode, plug_show, string(a:name))
 
-    "     ino <silent> <plug>(sm-prefix:scrollwin) @=<sid>on_leaving_submode()<cr>
-    exe printf('%snoremap <silent> %s %s<sid>on_leaving_submode()<cr>',
-        \ a:mode, plug_prefix, a:mode =~# '[ic]' ? '<c-r>=' : '@=')
-    " Why `i^r=` and `@=`?  Why not `<expr>`?{{{
-    "
-    " `s:on_leaving_submode()` couldn't do its job properly (`:h textlock`).
-    "}}}
+    "     ino <plug>(sm-prefix:scrollwin) <cmd>call <sid>on_leaving_submode()<cr>
+    exe printf('%snoremap %s <cmd>call <sid>on_leaving_submode()<cr>', a:mode, plug_prefix)
 
     "     imap <plug>(sm-prefix:scrollwin)_____j <c-g>j
     exe a:mode .. 'map '
@@ -262,6 +256,5 @@ fu s:show_submode(name, ...) abort "{{{2
         " don't try `SafeState`; it's not fired in insert mode
         call timer_start(0, {-> s:show_submode(a:name, 'now')})
     endif
-    return ''
 endfu
 
