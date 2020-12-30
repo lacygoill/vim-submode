@@ -199,7 +199,7 @@ fu s:last_key(lhs) abort "{{{2
     "     if !empty(lhs) && eval('"\' .. lhs .. '"') isnot# lhs
     "         return lhs
     "     else
-    "         return a:lhs[-1:-1]
+    "         return a:lhs[-1 : -1]
     "     endif
     "
     " The idea is that if `<[^<>]\+>$` has matched a special key, then we should
