@@ -201,7 +201,7 @@ enddef
 # Util {{{1
 def MapArguments(flags: string): string #{{{2
     return split(flags, '\zs')
-        ->map((_, v) => get(FLAG2ARG, v, ''))
+        ->map((_, v: string): string => get(FLAG2ARG, v, ''))
         ->join()
 enddef
 
