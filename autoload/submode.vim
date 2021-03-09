@@ -208,11 +208,11 @@ enddef
 def LastKey(lhs: string): string #{{{2
     # If you need sth more reliable, try this:{{{
     #
-    #     let lhs = matchstr(a:lhs, '<[^<>]\+>$')
-    #     if !empty(lhs) && eval('"\' .. lhs .. '"') isnot# lhs
-    #         return lhs
+    #     let special_key = matchstr(lhs, '<[^<>]\+>$')
+    #     if !empty(special_key) && eval('"\' .. special_key .. '"') != special_key
+    #         return special_key
     #     else
-    #         return a:lhs[-1 : -1]
+    #         return lhs[-1]
     #     endif
     #
     # The idea is that if `<[^<>]\+>$` has matched a special key, then we should
