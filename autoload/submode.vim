@@ -34,7 +34,7 @@ const FLAG2ARG: dict<string> = {
     n: '<nowait>',
     s: '<silent>',
     S: '<script>',
-    }
+}
 
 # Interface {{{1
 def submode#enter( #{{{2
@@ -43,7 +43,7 @@ def submode#enter( #{{{2
     flags: string,
     lhs: string,
     rhs: string
-    )
+)
     # What the function does can be boiled down to this:{{{
     #
     #     imap <c-g>j <c-x><c-e><plug>(prefix)
@@ -116,7 +116,7 @@ def submode#enter( #{{{2
     #
     #     <plug>(sm-prefix:scrollwin)_____  <cmd>call <SNR>123OnLeavingSubmode()<cr>
     #}}}
-    for mode in split(modes, '\zs')
+    for mode in modes
         InstallMappings(name, mode, flags, lhs, rhs)
     endfor
 enddef
@@ -128,7 +128,7 @@ def InstallMappings( #{{{2
     flags: string,
     lhs: string,
     rhs: string
-    )
+)
     # Why do you include `name` after the plug key?{{{
     #
     # The sequence of characters following the plug key must be unique enough.
@@ -227,7 +227,7 @@ def OnLeavingSubmode(): string #{{{2
     # clear the command-line to erase the name of the submode
     if mode() =~ '^[iR]'
         var pos: list<number> = getcurpos()
-        redraw!
+        echo ''
         setpos('.', pos)
     else
         exe "norm! \<c-l>"
@@ -266,7 +266,7 @@ def ShowSubmode(name: string, when = 'later') #{{{2
         echohl None
     else
         # don't try `SafeState`; it's not fired in insert mode
-        timer_start(0, () => ShowSubmode(name, 'now'))
+        timer_start(0, (_) => ShowSubmode(name, 'now'))
     endif
 enddef
 
