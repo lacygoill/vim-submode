@@ -208,7 +208,7 @@ enddef
 def LastKey(lhs: string): string #{{{2
     # If you need sth more reliable, try this:{{{
     #
-    #     let special_key = matchstr(lhs, '<[^<>]\+>$')
+    #     let special_key = lhs->matchstr('<[^<>]\+>$')
     #     if !empty(special_key) && eval('"\' .. special_key .. '"') != special_key
     #         return special_key
     #     else
@@ -220,7 +220,7 @@ def LastKey(lhs: string): string #{{{2
     # If we  can't, then  we didn't really  match a special  key, and  we should
     # ignore it.
     #}}}
-    return matchstr(lhs, '<[^<>]\+>$\|.$')
+    return lhs->matchstr('<[^<>]\+>$\|.$')
 enddef
 
 def OnLeavingSubmode(): string #{{{2
