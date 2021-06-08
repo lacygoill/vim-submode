@@ -254,7 +254,7 @@ def ShowSubmode(name: string, when = 'later') #{{{2
     #             echo 'YOU SHOULD SEE ME BUT YOU WONT'
     #             return ''
     #         endfu
-    #         sil pu=range(&lines)
+    #         sil pu =range(&lines)
     #         startinsert
     #     EOF
     #     )
