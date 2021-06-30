@@ -26,7 +26,7 @@ var loaded = true
 #}}}
 const STEALTH_TYPEAHEAD: string = repeat('<char-0xa0>', 5)
 #                                         ├─────────┘
-#                                         └ `:h <Char>`
+#                                         └ `:help <Char>`
 
 const FLAG2ARG: dict<string> = {
     b: '<buffer>',
@@ -46,18 +46,18 @@ def submode#enter( #{{{2
 )
     # What the function does can be boiled down to this:{{{
     #
-    #     imap <c-g>j <c-x><c-e><plug>(prefix)
-    #     imap <plug>(prefix)j <c-g>j
-    #     ino <plug>(prefix) <nop>
+    #     imap <C-G>j <C-X><C-E><Plug>(prefix)
+    #     imap <Plug>(prefix)j <C-G>j
+    #     inoremap <Plug>(prefix) <Nop>
     #
-    #     imap <c-g>k <c-x><c-y><plug>(prefix)
-    #     imap <plug>(prefix)k <c-g>k
+    #     imap <C-G>k <C-X><C-Y><Plug>(prefix)
+    #     imap <Plug>(prefix)k <C-G>k
     #
     # In this example, we  want `C-g j` to enter a submode  from insert mode, in
     # which we can simply press `j` to scroll the window one line up.
     #
     # Note that this works in a simple  test, but it's brittle because some keys
-    # can be  wrongly remapped.  Our  current implementation uses  more `<plug>`
+    # can be  wrongly remapped.  Our  current implementation uses  more `<Plug>`
     # mappings to be more robust.
     #
     # For some more details, see:
@@ -65,8 +65,8 @@ def submode#enter( #{{{2
     #}}}
     # Here is an example of invocations for this function:{{{
     #
-    #     call submode#enter('scrollwin', 'i', '', '<c-g>j', '<c-x><c-e>' )
-    #     call submode#enter('scrollwin', 'i', '', '<c-g>k', '<c-x><c-y>' )
+    #     call submode#enter('scrollwin', 'i', '', '<C-G>j', '<C-X><C-E>' )
+    #     call submode#enter('scrollwin', 'i', '', '<C-G>k', '<C-X><C-Y>' )
     #                         │            │   │    │         │
     #                         │            │   │    │         └ rhs: how the keys must be expanded
     #                         │            │   │    └ lhs: the keys to press to enter 'scrollwin'
@@ -76,19 +76,19 @@ def submode#enter( #{{{2
     #}}}
     # And here are the resulting *recursive* mappings:{{{
     #
-    #     <c-g>j  <plug>(sm-exe:scrollwin:<c-g>j)<plug>(sm-show:scrollwin)<plug>(sm-prefix:scrollwin)_____
-    #     <c-g>k  <plug>(sm-exe:scrollwin:<c-g>k)<plug>(sm-show:scrollwin)<plug>(sm-prefix:scrollwin)_____
+    #     <C-G>j  <Plug>(sm-exe:scrollwin:<C-G>j)<Plug>(sm-show:scrollwin)<Plug>(sm-prefix:scrollwin)_____
+    #     <C-G>k  <Plug>(sm-exe:scrollwin:<C-G>k)<Plug>(sm-show:scrollwin)<Plug>(sm-prefix:scrollwin)_____
     #             ├─────────────────────────────┘├───────────────────────┘├──────────────...
     #             │                              │                        └ type an ad-hoc prefix
     #             │                              │ so that you can repeat commands with 1 keypress
-    #             │                              │ (here 'j' and 'k' can repeat '<c-g>j' and '<c-g>k')
+    #             │                              │ (here 'j' and 'k' can repeat '<C-G>j' and '<C-G>k')
     #             │                              │
     #             │                              └ show you the name of the submode you're in (here 'scrollwin')
     #             │
     #             └ execute the desired command (here C-x C-y)
     #
-    #     <plug>(sm-prefix:scrollwin)_____j  <c-g>j
-    #     <plug>(sm-prefix:scrollwin)_____k  <c-g>k
+    #     <Plug>(sm-prefix:scrollwin)_____j  <C-G>j
+    #     <Plug>(sm-prefix:scrollwin)_____k  <C-G>k
     #     ├──────────────────────────────┘│  ├────┘
     #     │                               │  └ repeat the whole process:
     #     │                               │
@@ -109,12 +109,12 @@ def submode#enter( #{{{2
     #}}}
     #   As well as the *non*-recursive mappings:{{{
     #
-    #     <plug>(sm-exe:scrollwin:<c-g>j)  <c-x><c-e>
-    #     <plug>(sm-exe:scrollwin:<c-g>k)  <c-x><c-y>
+    #     <Plug>(sm-exe:scrollwin:<C-G>j)  <C-X><C-E>
+    #     <Plug>(sm-exe:scrollwin:<C-G>k)  <C-X><C-Y>
     #
-    #     <plug>(sm-show:scrollwin) <cmd>call <SNR>123ShowSubmode('scrollwin')<cr>
+    #     <Plug>(sm-show:scrollwin) <Cmd>call <SNR>123ShowSubmode('scrollwin')<CR>
     #
-    #     <plug>(sm-prefix:scrollwin)_____  <cmd>call <SNR>123OnLeavingSubmode()<cr>
+    #     <Plug>(sm-prefix:scrollwin)_____  <Cmd>call <SNR>123OnLeavingSubmode()<CR>
     #}}}
     for mode in modes
         InstallMappings(name, mode, flags, lhs, rhs)
@@ -149,50 +149,50 @@ def InstallMappings( #{{{2
     #                   ^
     #                   hard to find
     #}}}
-    var plug_exe: string = printf('<plug>(sm-exe:%s:%s)', name, lhs)
-    var plug_prefix: string = printf('<plug>(sm-prefix:%s)%s', name, STEALTH_TYPEAHEAD)
-    var plug_show: string = printf('<plug>(sm-show:%s)', name)
+    var plug_exe: string = printf('<Plug>(sm-exe:%s:%s)', name, lhs)
+    var plug_prefix: string = printf('<Plug>(sm-prefix:%s)%s', name, STEALTH_TYPEAHEAD)
+    var plug_show: string = printf('<Plug>(sm-show:%s)', name)
 
     # Install mapping on `lhs` to make it enter a submode.
-    # The mapping must be recursive, because its rhs contains `<plug>` keys.
+    # The mapping must be recursive, because its rhs contains `<Plug>` keys.
     # Why bother with `plug_exe`?  Why not just use `rhs` directly?{{{
     #
-    # Suppose that `rhs` is a built-in command; let's say `<c-w>+`.
-    # Since the mapping command is recursive, `<c-w>+` could be remapped.
+    # Suppose that `rhs` is a built-in command; let's say `<C-W>+`.
+    # Since the mapping command is recursive, `<C-W>+` could be remapped.
     # This is unexpected; we don't want that.
     #
     # Besides,  `rhs` can  be a  custom mapping  defined with  its own  set of
     # arguments (`<expr>`, `<silent>`, ...).
-    # But you can't use them here because the other `<plug>` may not work with them.
+    # But you can't use them here because the other `<Plug>` may not work with them.
     #}}}
-    exe mode .. 'map '
+    execute mode .. 'map '
         .. (flags =~ 'b' ? ' <buffer> ' : '')
         .. lhs
-        #     <plug>(sm-exe:scrollwin:<c-g>j)
-        #     →     <c-x><c-e>
+        #     <Plug>(sm-exe:scrollwin:<C-G>j)
+        #     →     <C-X><C-E>
         .. ' ' .. plug_exe
-        #     <plug>(sm-show:scrollwin)
-        #     →     <sid>ShowSubmode('scrollwin')
+        #     <Plug>(sm-show:scrollwin)
+        #     →     <SID>ShowSubmode('scrollwin')
         .. plug_show
-        #     <plug>(sm-prefix:scrollwin)_____
-        #     →     <cmd>call <sid>OnLeavingSubmode()<cr>
+        #     <Plug>(sm-prefix:scrollwin)_____
+        #     →     <Cmd>call <SID>OnLeavingSubmode()<CR>
         .. plug_prefix
 
-    #     imap <plug>(sm-exe:scrollwin:<c-g>j) <c-x><c-e>
-    exe mode .. (flags =~ 'r' ? 'map' : 'noremap')
+    #     imap <Plug>(sm-exe:scrollwin:<C-G>j) <C-X><C-E>
+    execute mode .. (flags =~ 'r' ? 'map' : 'noremap')
         # use mapping arguments (`<buffer>`, `<expr>`, ...) according to flags passed to `#enter()`
         .. ' ' .. MapArguments(flags)
         .. ' ' .. plug_exe
         .. ' ' .. rhs
 
-    #     ino <plug>(sm-show:scrollwin) <cmd>call <sid>ShowSubmode('scrollwin')<cr>
-    exe printf('%snoremap %s <cmd>call <sid>ShowSubmode(%s)<cr>', mode, plug_show, string(name))
+    #     inoremap <Plug>(sm-show:scrollwin) <Cmd>call <SID>ShowSubmode('scrollwin')<CR>
+    execute printf('%snoremap %s <Cmd>call <SID>ShowSubmode(%s)<CR>', mode, plug_show, string(name))
 
-    #     ino <plug>(sm-prefix:scrollwin) <cmd>call <sid>OnLeavingSubmode()<cr>
-    exe printf('%snoremap %s <cmd>call <sid>OnLeavingSubmode()<cr>', mode, plug_prefix)
+    #     inoremap <Plug>(sm-prefix:scrollwin) <Cmd>call <SID>OnLeavingSubmode()<CR>
+    execute printf('%snoremap %s <Cmd>call <SID>OnLeavingSubmode()<CR>', mode, plug_prefix)
 
-    #     imap <plug>(sm-prefix:scrollwin)_____j <c-g>j
-    exe mode .. 'map '
+    #     imap <Plug>(sm-prefix:scrollwin)_____j <C-G>j
+    execute mode .. 'map '
         .. (flags =~ 'b' ? ' <buffer> ' : '')
         .. plug_prefix .. LastKey(lhs)
         .. ' ' .. lhs
@@ -230,7 +230,7 @@ def OnLeavingSubmode(): string #{{{2
         echo ''
         setpos('.', pos)
     else
-        exe "norm! \<c-l>"
+        execute "normal! \<C-L>"
     endif
     return ''
 enddef
@@ -247,17 +247,14 @@ def ShowSubmode(name: string, when = 'later') #{{{2
     #
     # MWE:
     #
-    #     $ vim -Nu NONE -S <(cat <<'EOF'
-    #         set noshowmode
-    #         ino <c-g>j <c-x><c-e><c-r>=Echo()<cr>
-    #         fu Echo()
-    #             echo 'YOU SHOULD SEE ME BUT YOU WONT'
-    #             return ''
-    #         endfu
-    #         sil pu =range(&lines)
-    #         startinsert
-    #     EOF
-    #     )
+    #     set noshowmode
+    #     inoremap <C-G>j <C-X><C-E><C-R>=Echo()<CR>
+    #     function Echo()
+    #         echo 'YOU SHOULD SEE ME BUT YOU WONT'
+    #         return ''
+    #     endfunction
+    #     silent put =range(&lines)
+    #     startinsert
     #     " press 'C-g j'
     #}}}
     if when == 'now'
