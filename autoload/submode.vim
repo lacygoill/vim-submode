@@ -1,9 +1,10 @@
 vim9script noclear
 
-if exists('loaded') | finish | endif
-var loaded = true
-
 # Init {{{1
+
+var popup_id: number
+var timer_id: number
+var submode2bracket_key: dict<string>
 
 # A string to hide internal key mappings from the `'showcmd'` area.
 # https://github.com/kana/vim-submode/issues/3
@@ -36,13 +37,18 @@ const FLAG2ARG: dict<string> = {
     S: '<script>',
 }
 
+for mode in ['i', 'n', 'o', 's', 't', 'v', 'x']
+    execute mode .. 'noremap <Plug>(leave-submode-if-mapping-fails)'
+        .. ' <Cmd>call <SID>LeaveSubmodeIfMappingFails()<CR>'
+endfor
+
 # Interface {{{1
 def submode#enter( #{{{2
     name: string,
     modes: string,
     flags: string,
     lhs: string,
-    rhs: string
+    rhs: string,
 )
     # What the function does can be boiled down to this:{{{
     #
@@ -118,6 +124,23 @@ def submode#enter( #{{{2
     #}}}
     for mode in modes
         InstallMappings(name, mode, flags, lhs, rhs)
+        # Problem: It's cumbersome to repress `]x` to enter a submode after having left it.
+        # Solution:{{{
+        #
+        # Let us  press `]]` to re-enter  the last submode which  was entered by
+        # pressing a sequence starting with a square bracket.
+        # To  implement this  feature, we  need to  remember –  for any  given
+        # submode – the last keys after the square bracket:
+        #
+        #     {
+        #          arglist: 'a',
+        #          lightness: 'ol',
+        #          ...
+        #     }
+        #}}}
+        if mode == 'n' && lhs[0] == ']'
+            submode2bracket_key[name] = lhs[1 :]
+        endif
     endfor
 enddef
 #}}}1
@@ -168,9 +191,11 @@ def InstallMappings( #{{{2
     execute mode .. 'map '
         .. (flags =~ 'b' ? ' <buffer> ' : '')
         .. lhs
+        .. ' '
+        .. '<Plug>(leave-submode-if-mapping-fails)'
         #     <Plug>(sm-exe:scrollwin:<C-G>j)
         #     →     <C-X><C-E>
-        .. ' ' .. plug_exe
+        .. plug_exe
         #     <Plug>(sm-show:scrollwin)
         #     →     <SID>ShowSubmode('scrollwin')
         .. plug_show
@@ -197,18 +222,148 @@ def InstallMappings( #{{{2
         .. plug_prefix .. LastKey(lhs)
         .. ' ' .. lhs
 enddef
+
+def LeaveSubmodeIfMappingFails() #{{{2
+    if timer_id != 0
+        timer_stop(timer_id)
+    endif
+    timer_id = timer_start(0, (_) => CheckMappingHasWorked())
+enddef
+
+def CheckMappingHasWorked() #{{{2
+    # We're still in the middle of a mapping, so we're probably still in a submode.
+    # The mapping has worked; we're still in a submode.
+    if state() =~ 'm'
+        return
+    endif
+    # The mapping has somehow failed; we're no longer in a submode.
+    OnLeavingSubmode()
+    timer_stop(timer_id)
+    timer_id = 0
+enddef
+
+def OnLeavingSubmode() #{{{2
+    popup_close(popup_id)
+    popup_id = 0
+enddef
+
+def ShowSubmode(submode: string) #{{{2
+# We show the submode via a popup because it's more reliable.{{{
+#
+# For example, the message might sometimes be erased unexpectedly.
+# That happens, for example, with `i^x^e` and `i^x^y`.
+# For some reason, the scrolling of the window causes the command-line to be
+# redrawn;  it  should  not  happen  since  the  scrolling  occurs  *before*
+# `ShowSubmode()` is invoked.
+# The only explanation I can find  is that, even though `i^x^e` is processed
+# immediately,  the  actual scrolling  is  delayed  until the  typeahead  is
+# empty...
+#
+# MWE:
+#
+#     set noshowmode
+#     inoremap <C-G>j <C-X><C-E><C-R>=Echo()<CR>
+#     def g:Echo(): string
+#         echo 'YOU SHOULD SEE ME BUT YOU WONT'
+#         return ''
+#     enddef
+#     range(&lines)->setline(1)
+#     normal! G
+#     startinsert
+#     # press 'C-g j'
+#
+# To fix this issue, you need to delay `:echo`:
+#
+#     def ShowSubmode(name: string, when = 'later')
+#         if when == 'now'
+#             echohl ModeMsg
+#             echo '-- Submode: ' .. name .. ' --'
+#             echohl None
+#         else
+#             # don't try `SafeState`; it's not fired in insert mode
+#             timer_start(0, (_) => ShowSubmode(name, 'now'))
+#         endif
+#
+# ---
+#
+# Besides, `:echo` might erase a useful message.
+# With a popup, we get more control over  where to show the mode, and avoid this
+# pitfall.
+#
+# ---
+#
+# Besides, with  `:echo` you  need to  clear the  command-line when  leaving the
+# submode, which is trickier than it seems:
+#
+#     if mode() =~ '^[iR]'
+#         var pos: list<number> = getcurpos()
+#         echo ''
+#         setpos('.', pos)
+#     else
+#         execute "normal! \<C-L>"
+#     endif
+#}}}
+
+    # no need to do anything if the submode is already displayed
+    if popup_id != 0
+        return
+    endif
+
+    # if we  leave a  submode, let us  re-enter it with  `]]` (provided  that we
+    # entered it with a sequence starting with `]`)
+    if mode(true) == 'n' && submode2bracket_key->has_key(submode)
+        execute 'nmap ]] ]' .. submode2bracket_key[submode]
+        execute 'nmap [[ [' .. submode2bracket_key[submode]
+    endif
+
+    popup_close(popup_id)
+    popup_id = popup_create(submode, {
+        # We want the submode to be displayed in the tabline.{{{
+        #
+        # On  the command-line  (and the  statusline), it  could cause  a useful
+        # message to be  erased; because, when it's closed, Vim  seems to redraw
+        # the command-line.
+        #}}}
+        line: 1,
+        col: &columns - strcharlen(submode) + 1,
+        tabpage: -1,
+        zindex: 300,
+        highlight: 'ModeMsg',
+    })
+enddef
 #}}}1
 # Util {{{1
 def MapArguments(flags: string): string #{{{2
     return split(flags, '\zs')
-        ->map((_, v: string): string => get(FLAG2ARG, v, ''))
+        ->map((_, v: string) => get(FLAG2ARG, v, ''))
         ->join()
 enddef
 
 def LastKey(lhs: string): string #{{{2
+    # Special Case: Entering a submode via a sequence starting with a bracket, like `]x`.{{{
+    #
+    # In that  case, we probably  want to repeat the  key with the  bracket, not
+    # with the  last key.  This  is convenient, for  example, for `]a`  and `[a`
+    # which traverse the arglist:
+    #
+    #     press ]a to jump to the next argument
+    #     press ]  to jump to the next argument again
+    #     press [  to jump to the previous argument
+    #     ...
+    #}}}
+    if lhs =~ '^\['
+        return '['
+    elseif lhs =~ '^]'
+        return ']'
+    elseif lhs =~ '^<\a\%(.*>\)\@!'
+        return '<'
+    elseif lhs =~ '^>'
+        return '>'
+    endif
+
     # If you need sth more reliable, try this:{{{
     #
-    #     let special_key = lhs->matchstr('<[^<>]\+>$')
+    #     var special_key: string = lhs->matchstr('<[^<>]\+>$')
     #     if !empty(special_key) && eval('"\' .. special_key .. '"') != special_key
     #         return special_key
     #     else
@@ -221,49 +376,5 @@ def LastKey(lhs: string): string #{{{2
     # ignore it.
     #}}}
     return lhs->matchstr('<[^<>]\+>$\|.$')
-enddef
-
-def OnLeavingSubmode(): string #{{{2
-    # clear the command-line to erase the name of the submode
-    if mode() =~ '^[iR]'
-        var pos: list<number> = getcurpos()
-        echo ''
-        setpos('.', pos)
-    else
-        execute "normal! \<C-L>"
-    endif
-    return ''
-enddef
-
-def ShowSubmode(name: string, when = 'later') #{{{2
-    # The message may sometimes be erased unexpectedly.  Delaying it fixes the issue.{{{
-    #
-    # That happens, for example, with `i^x^e` and `i^x^y`.
-    # For some reason, the scrolling of the window causes the command-line to be
-    # redrawn;  it  should  not  happen  since  the  scrolling  occurs  *before*
-    # `ShowSubmode()` is invoked.
-    # The only explanation I can find  is that, even though `i^x^e` is processed
-    # immediately, the actual scrolling is delayed until the typeahead is empty...
-    #
-    # MWE:
-    #
-    #     set noshowmode
-    #     inoremap <C-G>j <C-X><C-E><C-R>=Echo()<CR>
-    #     function Echo()
-    #         echo 'YOU SHOULD SEE ME BUT YOU WONT'
-    #         return ''
-    #     endfunction
-    #     silent put =range(&lines)
-    #     startinsert
-    #     " press 'C-g j'
-    #}}}
-    if when == 'now'
-        echohl ModeMsg
-        echo '-- Submode: ' .. name .. ' --'
-        echohl None
-    else
-        # don't try `SafeState`; it's not fired in insert mode
-        timer_start(0, (_) => ShowSubmode(name, 'now'))
-    endif
 enddef
 
