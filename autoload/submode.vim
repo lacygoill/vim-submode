@@ -2,7 +2,6 @@ vim9script noclear
 
 # Init {{{1
 
-var popup_id: number
 var timer_id: number
 var submode2bracket_key: dict<string>
 
@@ -243,70 +242,45 @@ def CheckMappingHasWorked() #{{{2
 enddef
 
 def OnLeavingSubmode() #{{{2
-    popup_close(popup_id)
-    popup_id = 0
+    # clear the command-line to erase the name of the submode
+    if mode() =~ '^[iR]'
+        var pos: list<number> = getcurpos()
+        echo ''
+        setpos('.', pos)
+    else
+        execute "normal! \<C-L>"
+    endif
 enddef
 
-def ShowSubmode(submode: string) #{{{2
-# We show the submode via a popup because it's more reliable.{{{
-#
-# For example, the message might sometimes be erased unexpectedly.
-# That happens, for example, with `i^x^e` and `i^x^y`.
-# For some reason, the scrolling of the window causes the command-line to be
-# redrawn;  it  should  not  happen  since  the  scrolling  occurs  *before*
-# `ShowSubmode()` is invoked.
-# The only explanation I can find  is that, even though `i^x^e` is processed
-# immediately,  the  actual scrolling  is  delayed  until the  typeahead  is
-# empty...
-#
-# MWE:
-#
-#     set noshowmode
-#     inoremap <C-G>j <C-X><C-E><C-R>=Echo()<CR>
-#     def g:Echo(): string
-#         echo 'YOU SHOULD SEE ME BUT YOU WONT'
-#         return ''
-#     enddef
-#     range(&lines)->setline(1)
-#     normal! G
-#     startinsert
-#     # press 'C-g j'
-#
-# To fix this issue, you need to delay `:echo`:
-#
-#     def ShowSubmode(name: string, when = 'later')
-#         if when == 'now'
-#             echohl ModeMsg
-#             echo '-- Submode: ' .. name .. ' --'
-#             echohl None
-#         else
-#             # don't try `SafeState`; it's not fired in insert mode
-#             timer_start(0, (_) => ShowSubmode(name, 'now'))
-#         endif
-#
-# ---
-#
-# Besides, `:echo` might erase a useful message.
-# With a popup, we get more control over  where to show the mode, and avoid this
-# pitfall.
-#
-# ---
-#
-# Besides, with  `:echo` you  need to  clear the  command-line when  leaving the
-# submode, which is trickier than it seems:
-#
-#     if mode() =~ '^[iR]'
-#         var pos: list<number> = getcurpos()
-#         echo ''
-#         setpos('.', pos)
-#     else
-#         execute "normal! \<C-L>"
-#     endif
-#}}}
-
-    # no need to do anything if the submode is already displayed
-    if popup_id != 0
-        return
+def ShowSubmode(submode: string, when = 'later') #{{{2
+    # The message may sometimes be erased unexpectedly.  Delaying it fixes the issue.{{{
+    #
+    # That happens, for example, with `i^x^e` and `i^x^y`.
+    # For some reason, the scrolling of the window causes the command-line to be
+    # redrawn;  it  should  not  happen  since  the  scrolling  occurs  *before*
+    # `ShowSubmode()` is invoked.
+    # The only explanation I can find  is that, even though `i^x^e` is processed
+    # immediately, the actual scrolling is delayed until the typeahead is empty...
+    #
+    # MWE:
+    #
+    #     set noshowmode
+    #     inoremap <C-G>j <C-X><C-E><C-R>=Echo()<CR>
+    #     function Echo()
+    #         echo 'YOU SHOULD SEE ME BUT YOU WONT'
+    #         return ''
+    #     endfunction
+    #     silent put =range(&lines)
+    #     startinsert
+    #     " press 'C-g j'
+    #}}}
+    if when == 'now'
+        echohl ModeMsg
+        echo '-- Submode: ' .. submode .. ' --'
+        echohl None
+    else
+        # don't try `SafeState`; it's not fired in insert mode
+        timer_start(0, (_) => ShowSubmode(submode, 'now'))
     endif
 
     # if we  leave a  submode, let us  re-enter it with  `]]` (provided  that we
@@ -315,21 +289,6 @@ def ShowSubmode(submode: string) #{{{2
         execute 'nmap ]] ]' .. submode2bracket_key[submode]
         execute 'nmap [[ [' .. submode2bracket_key[submode]
     endif
-
-    popup_close(popup_id)
-    popup_id = popup_create(submode, {
-        # We want the submode to be displayed in the tabline.{{{
-        #
-        # On  the command-line  (and the  statusline), it  could cause  a useful
-        # message to be  erased; because, when it's closed, Vim  seems to redraw
-        # the command-line.
-        #}}}
-        line: 1,
-        col: &columns - strcharlen(submode) + 1,
-        tabpage: -1,
-        zindex: 300,
-        highlight: 'ModeMsg',
-    })
 enddef
 #}}}1
 # Util {{{1
