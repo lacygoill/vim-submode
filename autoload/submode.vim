@@ -36,7 +36,7 @@ const FLAG2ARG: dict<string> = {
     S: '<script>',
 }
 
-for mode in ['i', 'n', 'o', 's', 't', 'v', 'x']
+for mode: string in ['i', 'n', 'o', 's', 't', 'v', 'x']
     execute mode .. 'noremap <Plug>(leave-submode-if-mapping-fails)'
         .. ' <Cmd>call <SID>LeaveSubmodeIfMappingFails()<CR>'
 endfor
@@ -121,7 +121,7 @@ def submode#enter( #{{{2
     #
     #     <Plug>(sm-prefix:scrollwin)_____  <Cmd>call <SNR>123OnLeavingSubmode()<CR>
     #}}}
-    for mode in modes
+    for mode: string in modes
         InstallMappings(name, mode, flags, lhs, rhs)
         # Problem: It's cumbersome to repress `]x` to enter a submode after having left it.
         # Solution:{{{
