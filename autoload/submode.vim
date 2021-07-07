@@ -231,7 +231,6 @@ enddef
 
 def CheckMappingHasWorked() #{{{2
     # We're still in the middle of a mapping, so we're probably still in a submode.
-    # The mapping has worked; we're still in a submode.
     if state() =~ 'm'
         return
     endif
@@ -253,6 +252,13 @@ def OnLeavingSubmode() #{{{2
 enddef
 
 def ShowSubmode(submode: string, when = 'later') #{{{2
+# Don't try to use a popup.{{{
+#
+# It would wrongly remain open if we leave a submode by pressing `<C-C>`.
+#
+# Besides, `:echo` better emulates Vim's default behavior when printing a mode.
+#}}}
+
     # The message may sometimes be erased unexpectedly.  Delaying it fixes the issue.{{{
     #
     # That happens, for example, with `i^x^e` and `i^x^y`.
