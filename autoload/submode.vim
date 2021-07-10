@@ -4,6 +4,7 @@ vim9script noclear
 
 var timer_id: number
 var submode2bracket_key: dict<string>
+var pos_before_exe: list<number>
 
 # A string to hide internal key mappings from the `'showcmd'` area.
 # https://github.com/kana/vim-submode/issues/3
@@ -37,8 +38,8 @@ const FLAG2ARG: dict<string> = {
 }
 
 for mode: string in ['i', 'n', 'o', 's', 't', 'v', 'x']
-    execute mode .. 'noremap <Plug>(leave-submode-if-mapping-fails)'
-        .. ' <Cmd>call <SID>LeaveSubmodeIfMappingFails()<CR>'
+    execute mode .. 'noremap <Plug>(submode-before-exe)'
+        .. ' <Cmd>call <SID>BeforeExe()<CR>'
 endfor
 
 # Interface {{{1
@@ -172,8 +173,8 @@ def InstallMappings( #{{{2
     #                   hard to find
     #}}}
     var plug_exe: string = printf('<Plug>(sm-exe:%s:%s)', name, lhs)
-    var plug_prefix: string = printf('<Plug>(sm-prefix:%s)%s', name, STEALTH_TYPEAHEAD)
     var plug_show: string = printf('<Plug>(sm-show:%s)', name)
+    var plug_prefix: string = printf('<Plug>(sm-prefix:%s)%s', name, STEALTH_TYPEAHEAD)
 
     # Install mapping on `lhs` to make it enter a submode.
     # The mapping must be recursive, because its rhs contains `<Plug>` keys.
@@ -187,11 +188,23 @@ def InstallMappings( #{{{2
     # arguments (`<expr>`, `<silent>`, ...).
     # But you can't use them here because the other `<Plug>` may not work with them.
     #}}}
+    # TODO: Try to not install this mapping from here.{{{
+    #
+    # It makes  debugging harder, because  `:verbose` cannot tell us  from where
+    # the original mapping is really installed.
+    # Instead, we  should return the info  (possibly via a string),  used by the
+    # caller (e.g. via `:execute`).
+    #
+    # Problem: OK, so this function should return sth like a string.
+    # In turn, `submode#enter()` would return this string.
+    # But the latter can iterate over several modes.
+    # We can't return for every single one of them.
+    #}}}
     execute mode .. 'map '
         .. (flags =~ 'b' ? ' <buffer> ' : '')
         .. lhs
         .. ' '
-        .. '<Plug>(leave-submode-if-mapping-fails)'
+        .. '<Plug>(submode-before-exe)'
         #     <Plug>(sm-exe:scrollwin:<C-G>j)
         #     →     <C-X><C-E>
         .. plug_exe
@@ -222,7 +235,11 @@ def InstallMappings( #{{{2
         .. ' ' .. lhs
 enddef
 
-def LeaveSubmodeIfMappingFails() #{{{2
+def BeforeExe() #{{{2
+    # need this to decide later whether we should redraw the status line
+    pos_before_exe = getpos('.')
+
+    # if the mapping encounters an error, we should automatically leave the submode
     if timer_id != 0
         timer_stop(timer_id)
     endif
@@ -287,6 +304,19 @@ def ShowSubmode(submode: string, when = 'later') #{{{2
     else
         # don't try `SafeState`; it's not fired in insert mode
         timer_start(0, (_) => ShowSubmode(submode, 'now'))
+    endif
+
+    # TODO: What follows is irrelevant with regards to the function name.
+    # Maybe we  need an additional `<Plug>(submode-after-exe)`  mapping which we
+    # could use to run arbitrary code after we've run a command in a submode.
+
+    # Sometimes, the status line is not redrawn.  It should.{{{
+    #
+    # For example, when we traverse the changelist, it is jarring to not see the
+    # position always updated in the status line.
+    #}}}
+    if getpos('.') != pos_before_exe
+        redrawstatus
     endif
 
     # if we  leave a  submode, let us  re-enter it with  `]]` (provided  that we
