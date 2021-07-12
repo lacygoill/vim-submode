@@ -6,6 +6,41 @@ var timer_id: number
 var submode2bracket_key: dict<string>
 var pos_before_exe: list<number>
 
+# Should map a submode to a funcref, which the user can pass as an optional argument to `submode#enter()`.{{{
+#
+# When evaluated, that funcref should give a string, which the user wants to see
+# right after the submode name, on the command-line.
+#
+# This  can  be  useful  when  the original  command  prints  something  on  the
+# command-line which  is shadowed by  the name of the  submode.  We can  write a
+# custom function which computes the same info, and ask `submode#enter()` to use
+# it to re-print the missing info.
+#
+# ---
+#
+# Q: Ok, but why `dict<any>` and not `dict<func>`?
+# A: The argument is optional.  If we don't pass it, we default to a string:
+#
+#     func|string = any
+#
+# We could  also use `function('abs')` as  a default value, but  that would make
+# the code a bit harder to read/understand:
+#
+#     def submode#enter(
+#         ...
+#         msg = function('abs'),
+#               ^-------------^
+#     ): string
+#
+#     ...
+#
+#     if msg_suffix[submode]->typename() != function('abs')
+#                                           ^-------------^
+#
+# This just looks weird.
+#}}}
+var msg_suffix: dict<any>
+
 # A string to hide internal key mappings from the `'showcmd'` area.
 # https://github.com/kana/vim-submode/issues/3
 #
@@ -49,7 +84,11 @@ def submode#enter( #{{{2
     flags: string,
     lhs: string,
     rhs: string,
-)
+    msg: any = '',
+): string
+
+    var mapcmd: string
+
     # What the function does can be boiled down to this:{{{
     #
     #     imap <C-G>j <C-X><C-E><Plug>(prefix)
@@ -71,14 +110,14 @@ def submode#enter( #{{{2
     #}}}
     # Here is an example of invocations for this function:{{{
     #
-    #     call submode#enter('scrollwin', 'i', '', '<C-G>j', '<C-X><C-E>' )
-    #     call submode#enter('scrollwin', 'i', '', '<C-G>k', '<C-X><C-Y>' )
-    #                         │            │   │    │         │
-    #                         │            │   │    │         └ rhs: how the keys must be expanded
-    #                         │            │   │    └ lhs: the keys to press to enter 'scrollwin'
-    #                         │            │   └ flags: no flag
-    #                         │            └ mode: 'scrollwin' can be entered from insert mode
-    #                         └ name: the submode is named 'scrollwin'
+    #     execute submode#enter('scrollwin', 'i', '', '<C-G>j', '<C-X><C-E>' )
+    #     execute submode#enter('scrollwin', 'i', '', '<C-G>k', '<C-X><C-Y>' )
+    #                            │            │   │    │         │
+    #                            │            │   │    │         └ rhs: how the keys must be expanded
+    #                            │            │   │    └ lhs: the keys to press to enter 'scrollwin'
+    #                            │            │   └ flags: no flag
+    #                            │            └ mode: 'scrollwin' can be entered from insert mode
+    #                            └ name: the submode is named 'scrollwin'
     #}}}
     # And here are the resulting *recursive* mappings:{{{
     #
@@ -123,7 +162,7 @@ def submode#enter( #{{{2
     #     <Plug>(sm-prefix:scrollwin)_____  <Cmd>call <SNR>123OnLeavingSubmode()<CR>
     #}}}
     for mode: string in modes
-        InstallMappings(name, mode, flags, lhs, rhs)
+        mapcmd ..= GetMapCmd(name, mode, flags, lhs, rhs) .. '|'
         # Problem: It's cumbersome to repress `]x` to enter a submode after having left it.
         # Solution:{{{
         #
@@ -142,16 +181,20 @@ def submode#enter( #{{{2
             submode2bracket_key[name] = lhs[1 :]
         endif
     endfor
+    msg_suffix[name] = msg
+
+    return mapcmd->trim('|', 2)
 enddef
 #}}}1
 # Core {{{1
-def InstallMappings( #{{{2
+def GetMapCmd( #{{{2
     name: string,
     mode: string,
     flags: string,
     lhs: string,
-    rhs: string
-)
+    rhs: string,
+): string
+
     # Why do you include `name` after the plug key?{{{
     #
     # The sequence of characters following the plug key must be unique enough.
@@ -176,45 +219,6 @@ def InstallMappings( #{{{2
     var plug_show: string = printf('<Plug>(sm-show:%s)', name)
     var plug_prefix: string = printf('<Plug>(sm-prefix:%s)%s', name, STEALTH_TYPEAHEAD)
 
-    # Install mapping on `lhs` to make it enter a submode.
-    # The mapping must be recursive, because its rhs contains `<Plug>` keys.
-    # Why bother with `plug_exe`?  Why not just use `rhs` directly?{{{
-    #
-    # Suppose that `rhs` is a built-in command; let's say `<C-W>+`.
-    # Since the mapping command is recursive, `<C-W>+` could be remapped.
-    # This is unexpected; we don't want that.
-    #
-    # Besides,  `rhs` can  be a  custom mapping  defined with  its own  set of
-    # arguments (`<expr>`, `<silent>`, ...).
-    # But you can't use them here because the other `<Plug>` may not work with them.
-    #}}}
-    # TODO: Try to not install this mapping from here.{{{
-    #
-    # It makes  debugging harder, because  `:verbose` cannot tell us  from where
-    # the original mapping is really installed.
-    # Instead, we  should return the info  (possibly via a string),  used by the
-    # caller (e.g. via `:execute`).
-    #
-    # Problem: OK, so this function should return sth like a string.
-    # In turn, `submode#enter()` would return this string.
-    # But the latter can iterate over several modes.
-    # We can't return for every single one of them.
-    #}}}
-    execute mode .. 'map '
-        .. (flags =~ 'b' ? ' <buffer> ' : '')
-        .. lhs
-        .. ' '
-        .. '<Plug>(submode-before-exe)'
-        #     <Plug>(sm-exe:scrollwin:<C-G>j)
-        #     →     <C-X><C-E>
-        .. plug_exe
-        #     <Plug>(sm-show:scrollwin)
-        #     →     <SID>ShowSubmode('scrollwin')
-        .. plug_show
-        #     <Plug>(sm-prefix:scrollwin)_____
-        #     →     <Cmd>call <SID>OnLeavingSubmode()<CR>
-        .. plug_prefix
-
     #     imap <Plug>(sm-exe:scrollwin:<C-G>j) <C-X><C-E>
     execute mode .. (flags =~ 'r' ? 'map' : 'noremap')
         # use mapping arguments (`<buffer>`, `<expr>`, ...) according to flags passed to `#enter()`
@@ -233,6 +237,42 @@ def InstallMappings( #{{{2
         .. (flags =~ 'b' ? ' <buffer> ' : '')
         .. plug_prefix .. LastKey(lhs)
         .. ' ' .. lhs
+
+    # Install mapping on `lhs` to make it enter a submode.
+    # The mapping must be recursive, because its rhs contains `<Plug>` keys.
+    # Why bother with `plug_exe`?  Why not just use `rhs` directly?{{{
+    #
+    # Suppose that `rhs` is a built-in command; let's say `<C-W>+`.
+    # Since the mapping command is recursive, `<C-W>+` could be remapped.
+    # This is unexpected; we don't want that.
+    #
+    # Besides,  `rhs` can  be a  custom mapping  defined with  its own  set of
+    # arguments (`<expr>`, `<silent>`, ...).
+    # But you can't use them here because the other `<Plug>` may not work with them.
+    #}}}
+    # We don't install the mapping from here.  We just return the command.{{{
+    #
+    # We want the mapping to be installed (via `:execute`) from the script which
+    # invokes the current function.
+    #
+    # If we  ran the command  right from here,  it would make  debugging harder,
+    # because  `:verbose` could  tell us  from  where the  original mapping  was
+    # really installed.
+    #}}}
+    return mode .. 'map '
+        .. (flags =~ 'b' ? ' <buffer> ' : '')
+        .. lhs
+        .. ' '
+        .. '<Plug>(submode-before-exe)'
+        #     <Plug>(sm-exe:scrollwin:<C-G>j)
+        #     →     <C-X><C-E>
+        .. plug_exe
+        #     <Plug>(sm-show:scrollwin)
+        #     →     <SID>ShowSubmode('scrollwin')
+        .. plug_show
+        #     <Plug>(sm-prefix:scrollwin)_____
+        #     →     <Cmd>call <SID>OnLeavingSubmode()<CR>
+        .. plug_prefix
 enddef
 
 def BeforeExe() #{{{2
@@ -298,8 +338,13 @@ def ShowSubmode(submode: string, when = 'later') #{{{2
     #     " press 'C-g j'
     #}}}
     if when == 'now'
+        # could be a string or a number
+        var suffix: any = ''
+        if msg_suffix[submode]->typename() =~ '^func'
+            suffix = msg_suffix[submode]()
+        endif
         echohl ModeMsg
-        echo '-- Submode: ' .. submode .. ' --'
+        echo '-- Submode: ' .. submode .. ' -- ' .. suffix
         echohl None
     else
         # don't try `SafeState`; it's not fired in insert mode
